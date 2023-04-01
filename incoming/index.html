@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <base target="_top">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>FIRE-RES Geo Catch</title>
+
+    <link rel="shortcut icon" type="image/x-icon" href="../img/favicon.ico" />
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js" ></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.2/css/jquery.dataTables.min.css" />
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/rowreorder/1.3.2/css/rowReorder.dataTables.min.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/responsive/2.4.0/css/responsive.dataTables.min.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap"></script>
+    <script type="text/javascript" language="javascript" src="https://code.jquery.com/jquery-3.5.1.js"></script>
+    <script type="text/javascript" language="javascript" src="https://cdn.datatables.net/1.13.2/js/jquery.dataTables.min.js"></script>
+    <script type="text/javascript" language="javascript" src="https://cdn.datatables.net/rowreorder/1.3.2/js/dataTables.rowReorder.min.js"></script>
+    <script type="text/javascript" language="javascript" src="https://cdn.datatables.net/responsive/2.4.0/js/dataTables.responsive.min.js"></script>
+
+    <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="lib/MarkerCluster.css">
+    <link rel="stylesheet" href="lib/MarkerCluster.Default.css">
+    <link rel="stylesheet" href="lib/easy-button.css">
+    <script src="lib/leaflet.markercluster.js"></script>
+    <script src="lib/easy-button.js"></script>
+    <script src="lib/bootstrap-msg.js"></script>
+    <link rel="stylesheet" href="lib/bootstrap-msg.css">
+
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+        }
+        .leaflet-popup-content-wrapper {
+            min-width: 320px;
+        }
+        img.t {
+            max-width: 280px;
+            box-shadow: 0px 0px 5px black;
+            max-height: 200px;
+        }
+        .z  {
+            padding:2px;
+            cursor: pointer;
+            border: solid 1px  #00000000;
+        }
+        .z:hover {
+             border: solid 1px  #8c8c8c;
+        }
+        .zgreen {
+            color:darkgreen;
+        }
+        .zred {
+            color:darkred;
+        }
+        table.t {
+            white-space:nowrap;
+            border-collapse: collapse;
+        }
+
+        table.t   td {
+            white-space:nowrap;
+            border: 1px solid;
+            padding: 2px;
+        }
+        td:nth-child(10) {
+            background: #cccccc;
+        }
+        .leaflet-container {
+            height: 100%;
+            width: 100%;
+            max-width: 100%;
+            max-height: 100%;
+            font-size: 1rem !important;
+        }
+        .shadowed {
+            -webkit-filter: drop-shadow(2px 3px 2px rgba(0,0,0,0.5));
+            filter: drop-shadow(2px 3px 2px #222222);
+        }
+        .form-control{
+            min-width: 120px;
+        }
+
+    </style>
+    <script src="lib/popper.min.js"></script>
+</head>
+<body   onload="queryDB(); window.dispatchEvent(new Event('resize'));" >
+
+<div class="container  container-xxl">
+    <div class="row">
+        <div class="col">
+            <div id="map" style="  height: 400px;"></div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col">
+            <table id="example" class="display compact hover row-border table-striped" ></table>
+        </div>
+</div>
+</div>
+
+<script>
+
+    var initmessage = 'Welcome to FIRE-RES GeoCatch: only users <br>' +
+        'that have validated their app by autosending an email through the log link in ' +
+        'the app will be ' +
+        'able to see their photoes in this portal.<br>(<a target="_blank" href="/fireres/README.html#mapped-photoes">=>more info see here<=</a>) ';
+
+    var messages = "";
+    var validUsers = null;
+
+    var popupFunc =  function (layer) {
+        if( !(layer.feature.properties.uid in validUsers)) {
+             return "<div>Sorry, UID=<b>"+layer.feature.properties.uid+"</b> not " +
+                "validated. The photo will not be shown. Please proceed to " +
+                "validating your UID by associating an" +
+                " email address " +
+                 "-<a target=\"_blank\" href=\"/fireres/README.html#mapped-photoes\"> " +
+                 "more info HERE</a>.<BR>If you are the owner of this photo, send directly a validation email " +
+                 "<a href='mailto:fpirotti@gmail.com?subject=geocatchappid-"+layer.feature.properties.uid+"'>HERE</a></div>";
+        }
+        return '<table class="t"><tr><td  ><b>UID:</b>   '+ layer.feature.properties.uid + '</td><td> <b>Project:</b> '+layer.feature.properties.project + '</td></tr>' +
+            '<tr><td> <b>Accuracy:</b>  '+layer.feature.properties.accuracy + ' m</td> <td> <b>Azimuth/Zenith:</b>  '+layer.feature.properties.azimuth + '°/'+layer.feature.properties.zenith + '°</td></tr>' +
+            '<tr><td colspan="2"> <b>Date:</b>  '+layer.feature.properties.date + '</td></tr>' +
+            '<tr><td colspan="2"> <b>User:</b>  '+validUsers[layer.feature.properties.uid] + '</td></tr>' +
+            '<tr><td colspan="2" style=" text-align: center;"><img onclick="window.open(\''+layer.feature.properties.path +'\',\'_blank\')" class="t" src="'+layer.feature.properties.path +'" /></td></tr></table>';
+    };
+
+    var osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+    });
+
+    cluster = L.markerClusterGroup([]);
+    pointslayer =  L.layerGroup([]);
+    var streets =     L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_nolabels/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="http://cartodb.com/attributions">CartoDB</a>',
+        subdomains: 'abcd',
+        maxZoom: 19
+    });
+
+    var baseMaps = {
+        "OpenStreetMap": osm,
+        "Mapbox Streets": streets
+    };
+
+    var overlayMaps = {
+        "Positions": pointslayer,
+        "Cluster": cluster
+    };
+    var map = L.map('map', {
+        zoom: 5,
+        //minZoom:9,
+        center: new L.latLng([50, 12]),
+        layers: [osm,  cluster]
+    }),
+
+    iconSettings = {
+        mapIconUrl: '<svg version="1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 149 178"><path fill="{mapIconColor}" stroke="#FFF" stroke-width="6" stroke-miterlimit="10" d="M126 23l-6-6A69 69 0 0 0 74 1a69 69 0 0 0-51 22A70 70 0 0 0 1 74c0 21 7 38 22 52l43 47c6 6 11 6 16 0l48-51c12-13 18-29 18-48 0-20-8-37-22-51z"/><circle fill="{mapIconColorInnerCircle}" cx="74" cy="75" r="61"/><circle fill="#FFF" cx="74" cy="75" r="{pinInnerCircleRadius}"/></svg>',
+        mapIconColor: '#cc756b',
+        mapIconColorInnerCircle: '#fff',
+        pinInnerCircleRadius: 48
+    },
+
+    // icon normal state
+    divIcon = L.divIcon({
+        className: "leaflet-data-marker",
+        html: L.Util.template(iconSettings.mapIconUrl, iconSettings),
+        iconAnchor: [12, 32],
+        iconSize: [25, 30],
+        popupAnchor: [0, -28]
+    }),
+
+    // icon active state
+    divIconActive = L.divIcon({
+        className: "leaflet-data-marker",
+        html: L.Util.template(iconSettings.mapIconUrl, iconSettings),
+        iconAnchor: [18, 42],
+        iconSize: [36, 42],
+        popupAnchor: [0, -30]
+    }),
+    iMarker = -1;
+
+function processData(data){
+
+        var items = [];
+        var kk = [];
+        var cc=0;
+        $.each( data.features  , function( key, vals ) {
+            cc++;
+            var val = structuredClone(vals);
+            delete val.properties['path'];
+            var dt = val.properties['date'];
+            //var day = dt.slice(0,10);
+            //var time = dt.slice(13,22);
+            delete val.properties['date'];
+            const uidt = val.properties['uid'];
+            var oo = Object.values(val.properties);
+            //oo.unshift(time);
+            //oo.unshift(day);
+            oo.unshift(dt);
+            var symb = 'fa-ban zred';
+            var title = 'User ID '+uidt+' not validated!';
+            if( uidt in validUsers ){
+                symb = 'fa-check zgreen';
+                title = 'User ID '+uidt+' validated by ' + validUsers[uidt];
+            }
+            oo.unshift('<div style="white-space: nowrap;"><span class="fa fa-search-plus fa-1x z" onclick="zoomto(['+val.geometry.coordinates[1] +','+ val.geometry.coordinates[0] + '])"></span>' +
+                '<span  data-toggle="tooltip"  class="fa '+symb+' fa-1x " title="'+title+'" onclick="zoomto(['+val.geometry.coordinates[1] +','+ val.geometry.coordinates[0] + '])"></span>' +
+                '</div>' );
+            oo.unshift(cc);
+            items.push(  oo );
+            kk = Object.keys(val.properties);
+            kk.unshift('TimeStamp');
+           // kk.unshift('Day');
+            kk.unshift('zoom');
+            kk.unshift('id');
+            kk = kk.map(function(k){ return({title: k}); });
+        });
+
+
+        $('#example').DataTable({
+            destroy: true,
+            data: items,
+            responsive: true,
+            columns: kk,
+
+            initComplete: function () {
+
+                if($('.filters th').length ==0) {
+                    $('#example thead tr')
+                        .clone(true)
+                        .addClass('filters')
+                        .appendTo('#example thead');
+                }
+
+                this.api()
+                    .columns()
+                    .every(function (colIdx) {
+                        var column = this;
+
+                        var cell = $('.filters th').eq(
+                            $(column.columns(colIdx).header()).index()
+                        );
+
+                        if(column.header().textContent=="zoom" || column.header().textContent=="id"){
+                            column.header().textContent="";
+                            $(cell).html("");
+                            return 0;
+                        }
+                        var select = '<input type="text" placeholder="' + column.header().textContent + '" />';
+                        if(column.header().textContent=="uid" || column.header().textContent=="project"){
+                            select = $('<select class="form-control"  aria-label="Default select example"><option value=""></option></select>')
+                                     .on('change', function () {
+                                        var val = $.fn.dataTable.util.escapeRegex($(this).val());
+                                        column.search(val ? '^' + val + '$' : '', true, false).draw();
+                                     });
+                            column
+                                .data()
+                                .unique()
+                                .sort()
+                                .each(function (d, j) {
+                                    select.append('<option value="' + d + '">' + d + '</option>');
+                                });
+                            $(cell).html(select);
+                        } else if(column.header().textContent=="TimeStamp" ){
+                            select = $('<input class="form-control" style="min-width: 150px;" type="text" placeholder="' + column.header().textContent + '" />')
+                                .off('keyup change')
+                                .on('change', function (e) {
+                                    // Get the search value
+                                    $(this).attr('title', $(this).val());
+                                    var regexr = '({search})'; //$(this).parents('th').find('select').val();
+
+                                    cursorPosition = this.selectionStart;
+                                    // Search the column for that value
+                                    column
+                                        .column(colIdx)
+                                        .search(
+                                            this.value != ''
+                                                ? regexr.replace('{search}', '(((' + this.value + ')))')
+                                                : '',
+                                            this.value != '',
+                                            this.value == ''
+                                        )
+                                        .draw();
+                                })
+                                .on('keyup', function (e) {
+                                    e.stopPropagation();
+
+                                    $(this).trigger('change');
+                                    $(this)
+                                        .focus()[0]
+                                        .setSelectionRange(cursorPosition, cursorPosition);
+                                });
+                            $(cell).html(select);
+                        } else {
+                            $(cell).html("");
+
+                        }
+
+
+
+
+                    });
+            }
+        });
+
+         cluster.clearLayers();
+         pointslayer.clearLayers();
+         pointslayer.addLayer( L.geoJSON(data, {
+            pointToLayer: function(geoJsonPoint, latlng) {
+                return L.marker(latlng, {icon: divIcon});
+            },
+            style: function(feature) {
+                switch (feature.properties.project) {
+                    case 'FIRE-RES': return {color: "#ff0000"};
+                    case '':   return {color: "#0000ff"};
+                    case '':   return {color: "#0000ff"};
+                }
+            }
+        }).bindPopup(popupFunc) );
+
+        cluster.addLayer( L.geoJSON(data, {
+            pointToLayer: function(geoJsonPoint, latlng) {
+                return L.marker(latlng, {icon: divIcon}).bindPopup(popupFunc);
+            }
+        }) );
+        //map.removeLayer(pointslayer);
+        //map.removeLayer(cluster);
+        //pointslayer.addTo(map);
+        //cluster.addTo(map);
+        map.fitBounds(cluster.getBounds());
+
+        Msg.success(messages + "<br>N. of valid geotagged images in map: " +  data.features.length);
+
+        return(data.features.length );
+    };
+
+
+    function loadGeoJSON() {
+
+        $.getJSON( 'lut.json?v='+Date.now(), function(data){
+            validUsers=data;
+        }).fail(function() {
+            Msg.danger( "Error in lut.json" );
+        }).done(function(){
+            $.getJSON( 'fireRESgeocatch.geojson?v='+Date.now(), processData)
+                .fail(function() {
+                    Msg.danger( " Error in fireRESgeocatch.geojson" );
+            }).done(function(){
+                $(".fa-refresh").removeClass("fa-spin");
+            }) ;
+
+        });
+
+    };
+
+
+	function setActiveIcon(marker) {
+        marker.setIcon(divIconActive);
+    };
+
+    function zoomto(loc) {
+        map.setView(loc, 19);
+    };
+
+    L.Control.Watermark = L.Control.extend({
+        onAdd: function(map) {
+            var img = L.DomUtil.create('img');
+
+            img.src = '../img/fireres.png';
+            img.style.width = '100px';
+            img.style.cursor = 'pointer';
+            img.classList.add("shadowed") ;
+            img.onclick = function(){
+                Msg.success(initmessage,
+                    10000)};
+            return img;
+        },
+
+        onRemove: function(map) {
+            // Nothing to do here
+        }
+    });
+
+    L.control.watermark = function(opts) {
+        return new L.Control.Watermark(opts);
+    }
+
+    L.control.watermark({ position: 'bottomleft' }).addTo(map);
+
+    L.easyButton('fa-solid fa-refresh fa-2x', function(btn, map){
+        queryDB();
+    } ).addTo( map );
+
+
+    L.easyButton('fa-solid fa-book fa-2x', function(btn, map){
+        //console.log($("#msg")[0].innerText );
+        Msg.success(initmessage, 10000);
+    } ).addTo( map );
+
+    var layerControl = L.control.layers(baseMaps, overlayMaps, {collapsed:false}).addTo(map);
+
+    var queryDB = function(){
+        $(".fa-refresh").addClass("fa-spin");
+        $.ajax({url: "makeGeoJSON.php",
+            success: function(result){
+                messages = result;
+                loadGeoJSON(result);
+            },
+            fail: function(result){
+                Msg.danger('Loading points failed');
+                $(".fa-refresh").removeClass("fa-spin");
+            }
+        });
+    }
+
+</script>
+
+
+</body>
+</html>

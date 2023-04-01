@@ -1,0 +1,179 @@
+if (localStorage.getItem("uid") === null) {
+    localStorage.setItem('uid', (Math.random() + 1).toString(36).slice(2,12));
+}
+var resetTrackButton  = null;
+var uid = localStorage.getItem('uid'); //returns 4587ff526d
+var startTime = null;
+var utf8EncodedString;
+var options = {
+    enableHighAccuracy: true,
+    timeout: 5000,
+    maximumAge: 0
+};
+var maxNumCoords =  60*60*6; // six hours max
+var realTime = true;
+
+var isWakeSupported = false;
+var visible = true;
+
+var wakeLock = null;
+var errorLocations = 0;
+var interval = null;
+var coordCounter = 0;
+var maxacc = 0;
+
+var orientationcontrolG;
+
+var isLocationEnabled = false;
+
+function initBody(){
+    $('#lightmode').click(function() {
+        toggleTheme( );
+    });
+
+/*
+
+    utf8EncodedString = new TextEncoder("utf-8").encode(uid);
+    buffer = new ArrayBuffer(10+8+4+4+4+4); // 10=uid, 8=starttime timestamp long uint, 4x4 are lat long acc elapsed time
+
+    uidBuff = new Uint8Array(buffer, 24, 10);
+    starTimeBuff = new BigUint64Array(buffer, 0, 1);
+    dataBuff = new Uint32Array(buffer, 8, 4);
+
+// buffer for data size of 1000, if count is more,
+    dataTotBuff = new Uint32Array(1000);
+
+    try {
+        uidBuff.set(utf8EncodedString);
+    } catch (e) {
+        console.log(e);
+        updateLoggerAlert(uidBuff + " setting uid " + uid + " one " + utf8EncodedString + " returned error.", 2)
+    }
+*/
+
+    if(uid in validUsers){
+        updateLogger("Welcome "+validUsers[uid]+", your validated unique id is: <a href='mailto:fpirotti@gmail.com?subject=geocatchappid-"+uid+"'>" + uid+"</a>", 'logger', newline = false);
+    } else {
+        updateLogger("Welcome, your unique id is "+ uid +" <b>please validate</b> your app<br> " +
+            " by sending an email: just click the link below<br> <a href='mailto:fpirotti@gmail.com?subject=geocatchappid-"+uid+"'>==>  VALIDATE " + uid+"'<==</a>", 'logger', newline = false);
+    }
+
+
+    if ('wakeLock' in navigator) {
+        isWakeSupported = true;
+        updateLogger('Screen Wake Lock API supported!');
+        // create an async function to request a wake lock
+
+    } else {
+        updateLoggerWarn('Wake lock is not supported by this browser.');
+    }
+
+// event listener when going online
+    window.addEventListener( "online" , ( event ) =>
+    {
+        console.log( "online event" );
+        isOnline=true;
+        updateLoggerAlert("You are online! ", 1);
+        //updateLogger("You are online");
+    });
+// event listener when going offline
+    window.addEventListener( "offline" , ( event ) =>
+    {
+        console.log( "offline event" );
+        isOnline=false;
+        updateLoggerAlert("You are offline! Data will by synced later", 3);
+    });
+
+    if(window.location.pathname.includes('fireres')){
+        $("#start_demo").hide();
+        $("#geolocContainerButton").hide();
+        $("#file-button").height="300px";
+        $(".onlyfireres").show();
+
+    }
+
+
+
+    navigator.permissions.query({name:'geolocation'}).then((result) => {
+
+        if (result.state === 'denied') {
+            alert('Please reactivate location permissions, otherwise the app will not work!');
+            updateLoggerErr("Please reactivate location permissions, otherwise the app will not work!");
+            isLocationEnabled=false;
+        } else {
+            isLocationEnabled=true;
+        }
+
+        result.onchange = () => {
+            updateLoggerErr(`geolocation permission status has changed to ${result.state}`);
+            console.log(`geolocation permission status has changed to ${result.state}`);
+            if (result.state === 'denied') {
+                alert('Please reactivate location permissions, otherwise the app will not work!');
+                isLocationEnabled = false;
+            } else {
+                isLocationEnabled = true;
+            }
+        };
+    });
+
+    window.addEventListener("compassneedscalibration", function(event) {
+        alert('Your compass needs calibrating! Wave your device in a figure-eight motion');
+        event.preventDefault();
+    }, true);
+
+
+
+    $('#file-button').click(function () {
+
+        if( $("#projectname").val()=="" ) {
+            alert('Please choose a project name or "No Project" if your data does not belong to any specific project');
+            return(0);
+        }
+
+        interval = navigator.geolocation.watchPosition(successLocationListenCamera, errorLocationListen, options);
+
+        $("#photoarea").show();
+        initPhoto();
+        var devorientationFullTilt = FULLTILT.getDeviceOrientation({'type': 'world'});
+
+        devorientationFullTilt.then(function(orientationControl) {
+            orientationcontrolG = orientationControl;
+            orientationControl.listen(function() {
+
+                // Get latest screen-adjusted deviceorientation data
+                var screenAdjustedEvent = orientationControl.getFixedFrameEuler();
+                var heading = screenAdjustedEvent.alpha ; //* Math.PI / 180;
+                if(window.innerHeight > window.innerWidth){
+                    updateFieldIfNotNull('azimuth', 360-heading, 0);
+                    updateFieldIfNotNull('zenith',   screenAdjustedEvent.beta , 0);
+                } else {
+                    var h = (90+(360-heading));
+                    if(h > 360) h = h - 360;
+                    updateFieldIfNotNull('azimuth', h, 0);
+                    updateFieldIfNotNull('zenith',   (screenAdjustedEvent.gamma*-1) , 0);
+                }
+            });
+        }).catch(function(message) {
+            updateLoggerAlert(message, 3,1);
+            console.error(message);
+        });
+        //$('#file-input').click();
+    });
+
+
+    updateLoggerAlert("You are using version " + serviceWorkerCacheVersion);
+
+}
+
+
+
+
+//var slider2 = document.getElementById("geoloc_freq");
+//var output2 = document.getElementById("geoloc_freq_value");
+//output2.innerHTML = slider2.value; // Display the default slider value
+// Update the current slider value (each time you drag the slider handle)
+//slider2.oninput = function () {
+//    output2.innerHTML = this.value;
+//}
+
+
